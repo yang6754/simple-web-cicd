@@ -100,30 +100,38 @@ jobs:
             set -e
             cd /opt/simple-web
 
+            echo "=== [2a/5] 安装 docker-compose ==="
+            if ! command -v docker-compose &> /dev/null; then
+              sudo apt-get update && sudo apt-get install -y docker-compose
+            fi
+
             echo "=== [3/5] 加载 Docker 镜像 ==="
             gunzip -f simple-web.tar.gz
             docker load -i simple-web.tar
             rm -f simple-web.tar
 
             echo "=== [4/5] 停止旧容器并启动新容器 ==="
-            docker compose down --remove-orphans || true
+            sudo fuser -k 80/tcp 2>/dev/null || true
+            docker stop $(docker ps -q) 2>/dev/null || true
+            docker rm $(docker ps -aq) 2>/dev/null || true
+            docker-compose down || true
             cp docker-compose.prod.yml docker-compose.yml
-            docker compose up -d
+            docker-compose up -d
 
             echo "=== [5/5] 健康检查 ==="
-            sleep 3
+            sleep 5
             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80 || echo "000")
             if [ "$HTTP_CODE" = "200" ]; then
               echo "✅ 部署成功！HTTP: $HTTP_CODE"
             else
               echo "⚠️ 返回 $HTTP_CODE，查看日志："
-              docker compose logs --tail=20
+              docker-compose logs --tail=20
               exit 1
             fi
 
             echo ""
             echo "=== 运行状态 ==="
-            docker compose ps
+            docker-compose ps
           '
 
   # ============================================
